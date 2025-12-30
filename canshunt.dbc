@@ -1,0 +1,74 @@
+VERSION ""
+
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_: 
+BU_: currentsense 
+BO_ 512 ina_raw0: 8 currentsense
+   SG_ ina_0 : 0|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ ina_1 : 16|16@1+ (1,0) [0|4095] "" currentsense
+   SG_ ina_2 : 32|16@1+ (1,0) [0|4095] "" currentsense
+   SG_ ina_3 : 48|16@1+ (1,0) [0|4095] "" currentsense
+
+BO_ 513 ina_raw1: 8 currentsense
+   SG_ ina_4 : 0|16@1+ (1,0) [0|4095] "" currentsense
+   SG_ ina_5 : 16|16@1+ (1,0) [0|4095] "" currentsense
+   SG_ ina_6 : 32|16@1+ (1,0) [0|4095] "" currentsense
+   SG_ ina_7 : 48|16@1+ (1,0) [0|4095] "" currentsense
+
+BO_ 514 zxc_raw0: 8 currentsense
+   SG_ zxc_0 : 0|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_1 : 16|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_2 : 32|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_4 : 48|16@1+ (1,0) [0|4095] "" Vector__XXX
+
+BO_ 515 zxc_raw1: 8 currentsense
+   SG_ zxc_4 : 0|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_5 : 16|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_6 : 32|16@1+ (1,0) [0|4095] "" Vector__XXX
+   SG_ zxc_7 : 48|16@1+ (1,0) [0|4095] "" Vector__XXX
+
+BA_DEF_ BO_ "GenMsgBackgroundColor" STRING ;
+BA_DEF_ BO_ "GenMsgForegroundColor" STRING ;
+BA_DEF_ BO_ "matchingcriteria" INT 0 0;
+BA_DEF_ BO_ "filterlabeling" INT 0 0;
+BA_DEF_ BO_ "matchingcriteria" INT 0 0;
+BA_DEF_ BO_ "filterlabeling" INT 0 0;
+BA_ "GenMsgForegroundColor" BO_ 512 "#00aa00";
+BA_ "GenMsgForegroundColor" BO_ 514 "#000000";
+BA_DEF_DEF_ "GenMsgBackgroundColor" "#ffffff";
+BA_DEF_DEF_ "GenMsgForegroundColor" "#232629";
+BA_DEF_DEF_ "matchingcriteria" 0;
+BA_DEF_DEF_ "filterlabeling" 1;
+BA_DEF_DEF_ "matchingcriteria" 0;
+BA_DEF_DEF_ "filterlabeling" true;
+CM_ BU_ currentsense "Default node if none specified";
