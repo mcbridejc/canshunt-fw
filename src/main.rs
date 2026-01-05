@@ -21,11 +21,11 @@ use lilos::exec::Notify;
 use panic_probe as _;
 use rtt_target::{rtt_init, set_defmt_channel};
 
-use stm32_hal2::gpio::{OutputType, Pin, PinMode, Port};
+use stm32_hal2::{clocks::PllCfg, gpio::{OutputType, Pin, PinMode, Port}};
 use stm32_hal2::pac::interrupt;
 use stm32_hal2::{self as hal, adc::Adc};
 
-use stm32_metapac::{self as pac, RCC};
+use stm32_metapac::{self as pac, RCC, can::vals::Act};
 use zencan_node::{Callbacks, Node, common::NodeId, object_dict::ObjectAccess};
 
 mod adc;
@@ -47,6 +47,7 @@ static CAN: Mutex<RefCell<Option<FdCan<FdCan1, NormalOperationMode>>>> =
     Mutex::new(RefCell::new(None));
 
 static CAN_NOTIFY: Notify = Notify::new();
+
 
 fn get_serial() -> u32 {
     let mut ctx: FnvHasher = Default::default();
@@ -100,11 +101,21 @@ fn transmit_can_messages(can: &mut FdCan<FdCan1, NormalOperationMode>) {
 
 fn transmit_notify_handler() {
     defmt::info!("Tx");
+    // Enable transceiver
+    enable_can_xcvr(true);
     critical_section::with(|cs| {
         let mut borrow = CAN.borrow_ref_mut(cs);
         let can = borrow.as_mut().unwrap();
         transmit_can_messages(can);
     })
+}
+
+fn enable_can_xcvr(enable: bool) {
+    if enable {
+        hal::gpio::set_low(Port::B, 7);
+    } else {
+        hal::gpio::set_high(Port::B, 7);
+    }
 }
 
 /// Callback to notify CAN task that there are messages to be processed
@@ -151,6 +162,31 @@ fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
 
     let clock_cfg = hal::clocks::Clocks::default();
+    let clock_cfg = hal::clocks::Clocks {
+        input_src: stm32_hal2::clocks::InputSrc::Pll(stm32_hal2::clocks::PllSrc::Hsi),
+        pll: stm32_hal2::clocks::PllCfg {
+            enabled: true,
+            pllr_en: true,
+            pllq_en: true,
+            pllp_en: false,
+            divm: stm32_hal2::clocks::Pllm::Div2,
+            divn: 8,
+            divr: stm32_hal2::clocks::Pllr::Div8,
+            divq: stm32_hal2::clocks::Pllr::Div8,
+            divp: stm32_hal2::clocks::Pllp::Div7,
+            pdiv: 0,
+        },
+        pllsai1: PllCfg::disabled(),
+        hclk_prescaler: stm32_hal2::clocks::HclkPrescaler::Div1,
+        apb1_prescaler: stm32_hal2::clocks::ApbPrescaler::Div1,
+        apb2_prescaler: stm32_hal2::clocks::ApbPrescaler::Div1,
+        clk48_src: stm32_hal2::clocks::Clk48Src::Pllq,
+        hse_bypass: true,
+        security_system: false,
+        hsi48_on: false,
+        stop_wuck: stm32_hal2::clocks::StopWuck::Hsi,
+        sai1_src: stm32_hal2::clocks::SaiSrc::ExtClk,
+    };
 
     defmt::error!("running");
 
@@ -163,6 +199,10 @@ fn main() -> ! {
     defmt::info!("APB1: {}", apb1_freq);
     defmt::info!("systick: {}", systick_freq);
 
+    // When clock is below 26MHz, can operate on lowest voltage (Range2) to save power
+    pac::PWR.cr1().modify(|w| w.set_vos(stm32_metapac::pwr::vals::Vos::RANGE2));
+    pac::PWR.cr1().modify(|w| w.set_lpr(stm32_metapac::pwr::vals::Lpr::LOW_POWER_MODE));
+
     pac::RCC.apb1enr2().modify(|w| w.set_fdcan1en(true));
     pac::RCC
         .ccipr()
@@ -171,20 +211,21 @@ fn main() -> ! {
     // Initialize the FDCAN peripheral
     let mut can = FdCan::new(FdCan1 {}).into_config_mode();
     // Bit timing calculated at http://www.bittiming.can-wiki.info/
-    // 1Mbit with 55MHz clock
+    // 1Mbit with 8MHz clock
     let can_config = FdCanConfig::default()
+        .set_transmit_pause(true)
         .set_automatic_retransmit(false)
         .set_frame_transmit(fdcan::config::FrameTransmissionConfig::ClassicCanOnly)
         .set_data_bit_timing(DataBitTiming {
             transceiver_delay_compensation: false,
-            prescaler: NonZeroU8::new(5).unwrap(),
-            seg1: NonZeroU8::new(9).unwrap(),
+            prescaler: NonZeroU8::new(1).unwrap(),
+            seg1: NonZeroU8::new(6).unwrap(),
             seg2: NonZeroU8::new(1).unwrap(),
             sync_jump_width: NonZeroU8::new(1).unwrap(),
         })
         .set_nominal_bit_timing(fdcan::config::NominalBitTiming {
-            prescaler: NonZeroU16::new(5).unwrap(),
-            seg1: NonZeroU8::new(9).unwrap(),
+            prescaler: NonZeroU16::new(1).unwrap(),
+            seg1: NonZeroU8::new(6).unwrap(),
             seg2: NonZeroU8::new(1).unwrap(),
             sync_jump_width: NonZeroU8::new(1).unwrap(),
         })
@@ -244,15 +285,15 @@ fn main() -> ! {
     let adc_config = hal::adc::AdcConfig {
         clock_mode: stm32_hal2::adc::ClockMode::SyncDiv4,
         sample_time: stm32_hal2::adc::SampleTime::T61,
-        prescaler: stm32_hal2::adc::Prescaler::D128,
+        prescaler: stm32_hal2::adc::Prescaler::D10,
         operation_mode: stm32_hal2::adc::OperationMode::OneShot,
         cal_single_ended: None,
         cal_differential: None,
     };
 
     RCC.ahb2enr().modify(|w| w.set_adcen(true));
-    let adc = hal::adc::Adc::new_adc1(adc_regs, hal::adc::AdcDevice::One, adc_config, sysclk_freq)
-        .unwrap();
+    // let adc = hal::adc::Adc::new_adc1(adc_regs, hal::adc::AdcDevice::One, adc_config, sysclk_freq)
+    //     .unwrap();
 
     defmt::info!("Running tasks");
 
@@ -283,6 +324,7 @@ async fn can_task(mut node: Node<'_>) -> Infallible {
         lilos::time::with_timeout(Duration::from_millis(50), CAN_NOTIFY.until_next()).await;
         let time_us = epoch.elapsed().0 * 1000;
         node.process(time_us);
+
     }
 }
 
@@ -290,10 +332,26 @@ const INA_CHANNELS: &[u8] = &[16, 14, 12, 10, 8, 6, 4, 2];
 const ZXC_CHANNELS: &[u8] = &[15, 13, 11, 9, 7, 5, 3, 1];
 
 async fn main_task(cpu_freq: u32) -> Infallible {
+    defmt::info!("Configuring ADC");
     adc::configure_adc(cpu_freq);
+    defmt::info!("ADC configured");
 
     loop {
         lilos::time::sleep_for(Duration::from_millis(100)).await;
+
+        critical_section::with(|cs| {
+            let mut borrow = CAN.borrow_ref_mut(cs);
+            let can = borrow.as_mut().unwrap();
+            let status = can.get_protocol_status();
+            
+            //defmt::info!("Bus off: {}, error passive: {}", status.bus_off_status, status.error_passive_state);
+            if status.bus_off_status {
+                // Clear init bit to return to operational
+                pac::FDCAN1.cccr().modify(|w| w.set_init(false));
+                defmt::info!("Recovering from BUS OFF error state")
+            }
+        });
+
         let mut adc_values = [0u16; 16];
         for i in 0..0 {
             adc_values[i] = adc::read_adc(INA_CHANNELS[i] as usize);
@@ -359,5 +417,10 @@ fn FDCAN1_IT0() {
     if can.has_interrupt(fdcan::interrupt::Interrupt::TxComplete) {
         can.clear_interrupt(fdcan::interrupt::Interrupt::TxComplete);
         transmit_can_messages(can);
+        // If we are done transmitting for now, turn off the transceiver
+        if pac::FDCAN1.txfqs().read().tffl() == 0 && pac::FDCAN1.psr().read().act() == Act::IDLE {
+            enable_can_xcvr(false);
+        };
     }
 }
+

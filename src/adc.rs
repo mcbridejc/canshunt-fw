@@ -1,4 +1,5 @@
-use stm32_metapac as pac;
+use stm32_hal2::adc::ClockMode;
+use stm32_metapac::{self as pac, adc::vals};
 
 fn set_adc_sequence_value(adc: pac::adc::Adc, n: usize, chan: u8) {
     match n {
@@ -25,6 +26,9 @@ fn set_adc_sequence_value(adc: pac::adc::Adc, n: usize, chan: u8) {
 /// Setup the ADC for reading the analog channels
 pub fn configure_adc(cpufreq: u32) {
     pac::RCC.ahb2enr().modify(|w| w.set_adcen(true));
+    pac::ADC12_COMMON.ccr().modify(|w| {
+        w.set_ckmode(2); // Sync mode, HCLK/2
+    });
     pac::ADC1.cr().modify(|w| {
         w.set_advregen(true);
     });

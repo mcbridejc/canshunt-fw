@@ -1,4 +1,4 @@
-device_name = "can-io"
+device_name = "CANShunt"
 software_version = "v0.0.1"
 hardware_version = "rev1"
 heartbeat_period = 1000
