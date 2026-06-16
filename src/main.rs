@@ -7,6 +7,7 @@ use core::{
     hash::Hasher,
     num::{NonZeroU8, NonZeroU16},
     pin::pin,
+    sync::atomic::{AtomicU8, AtomicU32, Ordering},
     time::Duration,
 };
 
@@ -17,18 +18,28 @@ use fdcan::{
     config::{DataBitTiming, FdCanConfig, GlobalFilter},
 };
 use hash32::FnvHasher;
-use lilos::exec::Notify;
+use lilos::{
+    exec::{Interrupts, Notify},
+    time::Millis,
+};
+use num_traits::float::FloatCore as _;
 use panic_probe as _;
 use rtt_target::{rtt_init, set_defmt_channel};
 
-use stm32_hal2::{clocks::PllCfg, gpio::{OutputType, Pin, PinMode, Port}};
+use stm32_hal2 as hal;
 use stm32_hal2::pac::interrupt;
-use stm32_hal2::{self as hal, adc::Adc};
+use stm32_hal2::{
+    clocks::PllCfg,
+    gpio::{Pin, PinMode, Port},
+};
 
 use stm32_metapac::{self as pac, RCC, can::vals::Act};
 use zencan_node::{Callbacks, Node, common::NodeId, object_dict::ObjectAccess};
 
+use crate::led::LedFlasher;
+
 mod adc;
+mod led;
 
 mod zencan {
     zencan_node::include_modules!(ZENCAN_CONFIG);
@@ -47,7 +58,6 @@ static CAN: Mutex<RefCell<Option<FdCan<FdCan1, NormalOperationMode>>>> =
     Mutex::new(RefCell::new(None));
 
 static CAN_NOTIFY: Notify = Notify::new();
-
 
 fn get_serial() -> u32 {
     let mut ctx: FnvHasher = Default::default();
@@ -100,12 +110,20 @@ fn transmit_can_messages(can: &mut FdCan<FdCan1, NormalOperationMode>) {
 }
 
 fn transmit_notify_handler() {
-    defmt::info!("Tx");
     // Enable transceiver
     enable_can_xcvr(true);
     critical_section::with(|cs| {
         let mut borrow = CAN.borrow_ref_mut(cs);
         let can = borrow.as_mut().unwrap();
+
+        // Check and clear errors
+        let status = can.get_protocol_status();
+        if status.bus_off_status {
+            // Clear init bit to return to operational
+            pac::FDCAN1.cccr().modify(|w| w.set_init(false));
+            defmt::info!("Recovering from BUS OFF error state")
+        }
+
         transmit_can_messages(can);
     })
 }
@@ -150,18 +168,19 @@ fn main() -> ! {
     let _ina6 = Pin::new(Port::C, 3, PinMode::Analog);
     let _ina7 = Pin::new(Port::C, 1, PinMode::Analog);
 
-    let _zxc0 = Pin::new(Port::B, 0, PinMode::Analog);
-    let _zxc1 = Pin::new(Port::C, 4, PinMode::Analog);
-    let _zxc2 = Pin::new(Port::A, 6, PinMode::Analog);
-    let _zxc3 = Pin::new(Port::A, 4, PinMode::Analog);
-    let _zxc4 = Pin::new(Port::A, 2, PinMode::Analog);
-    let _zxc5 = Pin::new(Port::A, 0, PinMode::Analog);
-    let _zxc6 = Pin::new(Port::C, 2, PinMode::Analog);
-    let _zxc7 = Pin::new(Port::C, 0, PinMode::Analog);
+    let _v0 = Pin::new(Port::B, 0, PinMode::Analog);
+    let _v1 = Pin::new(Port::C, 4, PinMode::Analog);
+    let _v2 = Pin::new(Port::A, 6, PinMode::Analog);
+    let _v3 = Pin::new(Port::A, 4, PinMode::Analog);
+    let _v4 = Pin::new(Port::A, 2, PinMode::Analog);
+    let _v5 = Pin::new(Port::A, 0, PinMode::Analog);
+    let _v6 = Pin::new(Port::C, 2, PinMode::Analog);
+    let _v7 = Pin::new(Port::C, 0, PinMode::Analog);
+
+    let mode_btn = Pin::new(Port::H, 3, PinMode::Input);
 
     let mut cp = cortex_m::Peripherals::take().unwrap();
 
-    let clock_cfg = hal::clocks::Clocks::default();
     let clock_cfg = hal::clocks::Clocks {
         input_src: stm32_hal2::clocks::InputSrc::Pll(stm32_hal2::clocks::PllSrc::Hsi),
         pll: stm32_hal2::clocks::PllCfg {
@@ -183,7 +202,7 @@ fn main() -> ! {
         clk48_src: stm32_hal2::clocks::Clk48Src::Pllq,
         hse_bypass: true,
         security_system: false,
-        hsi48_on: false,
+        hsi48_on: true,
         stop_wuck: stm32_hal2::clocks::StopWuck::Hsi,
         sai1_src: stm32_hal2::clocks::SaiSrc::ExtClk,
     };
@@ -200,8 +219,12 @@ fn main() -> ! {
     defmt::info!("systick: {}", systick_freq);
 
     // When clock is below 26MHz, can operate on lowest voltage (Range2) to save power
-    pac::PWR.cr1().modify(|w| w.set_vos(stm32_metapac::pwr::vals::Vos::RANGE2));
-    pac::PWR.cr1().modify(|w| w.set_lpr(stm32_metapac::pwr::vals::Lpr::LOW_POWER_MODE));
+    pac::PWR
+        .cr1()
+        .modify(|w| w.set_vos(stm32_metapac::pwr::vals::Vos::RANGE2));
+    pac::PWR
+        .cr1()
+        .modify(|w| w.set_lpr(stm32_metapac::pwr::vals::Lpr::LOW_POWER_MODE));
 
     pac::RCC.apb1enr2().modify(|w| w.set_fdcan1en(true));
     pac::RCC
@@ -211,7 +234,9 @@ fn main() -> ! {
     // Initialize the FDCAN peripheral
     let mut can = FdCan::new(FdCan1 {}).into_config_mode();
     // Bit timing calculated at http://www.bittiming.can-wiki.info/
-    // 1Mbit with 8MHz clock
+    // 500kbit with 8MHz clock
+    const SEG1: u8 = 13;
+    const SEG2: u8 = 2;
     let can_config = FdCanConfig::default()
         .set_transmit_pause(true)
         .set_automatic_retransmit(false)
@@ -219,14 +244,14 @@ fn main() -> ! {
         .set_data_bit_timing(DataBitTiming {
             transceiver_delay_compensation: false,
             prescaler: NonZeroU8::new(1).unwrap(),
-            seg1: NonZeroU8::new(6).unwrap(),
-            seg2: NonZeroU8::new(1).unwrap(),
+            seg1: NonZeroU8::new(SEG1).unwrap(),
+            seg2: NonZeroU8::new(SEG2).unwrap(),
             sync_jump_width: NonZeroU8::new(1).unwrap(),
         })
         .set_nominal_bit_timing(fdcan::config::NominalBitTiming {
             prescaler: NonZeroU16::new(1).unwrap(),
-            seg1: NonZeroU8::new(6).unwrap(),
-            seg2: NonZeroU8::new(1).unwrap(),
+            seg1: NonZeroU8::new(SEG1).unwrap(),
+            seg2: NonZeroU8::new(SEG2).unwrap(),
             sync_jump_width: NonZeroU8::new(1).unwrap(),
         })
         .set_global_filter(GlobalFilter {
@@ -255,6 +280,8 @@ fn main() -> ! {
     critical_section::with(|cs| {
         CAN.borrow_ref_mut(cs).replace(can);
     });
+
+    zencan::OBJECT1018.set_serial(get_serial());
 
     let callbacks = Callbacks {
         store_node_config: None,
@@ -292,10 +319,8 @@ fn main() -> ! {
     };
 
     RCC.ahb2enr().modify(|w| w.set_adcen(true));
-    // let adc = hal::adc::Adc::new_adc1(adc_regs, hal::adc::AdcDevice::One, adc_config, sysclk_freq)
-    //     .unwrap();
-
-    defmt::info!("Running tasks");
+    let _adc = hal::adc::Adc::new_adc1(adc_regs, hal::adc::AdcDevice::One, adc_config, sysclk_freq)
+        .unwrap();
 
     // Enable debugger access while sleeping
     pac::DBGMCU.cr().modify(|w| {
@@ -307,13 +332,33 @@ fn main() -> ! {
     // Set up the OS timer.
     lilos::time::initialize_sys_tick(&mut cp.SYST, systick_freq);
 
+    let control_commands = [const { AtomicU32::new(0) }; 8];
+    let mut leds = [
+        LedFlasher::new(Pin::new(Port::C, 11, PinMode::Output), &control_commands[0]),
+        LedFlasher::new(Pin::new(Port::C, 12, PinMode::Output), &control_commands[1]),
+        LedFlasher::new(Pin::new(Port::B, 4, PinMode::Output), &control_commands[2]),
+        LedFlasher::new(Pin::new(Port::B, 6, PinMode::Output), &control_commands[3]),
+        LedFlasher::new(Pin::new(Port::B, 5, PinMode::Output), &control_commands[4]),
+        LedFlasher::new(Pin::new(Port::C, 13, PinMode::Output), &control_commands[5]),
+        LedFlasher::new(Pin::new(Port::C, 14, PinMode::Output), &control_commands[6]),
+        LedFlasher::new(Pin::new(Port::C, 15, PinMode::Output), &control_commands[7]),
+    ];
+
     unsafe { cortex_m::interrupt::enable() };
     unsafe { cortex_m::peripheral::NVIC::unmask(pac::Interrupt::FDCAN1_IT0) };
 
-    lilos::exec::run_tasks(
-        &mut [pin!(can_task(node)), pin!(main_task(sysclk_freq))],
-        lilos::exec::ALL_TASKS,
-    )
+    unsafe {
+        lilos::exec::run_tasks_with_preemption(
+            &mut [
+                pin!(can_task(node)),
+                pin!(main_task(sysclk_freq, &control_commands)),
+                pin!(led_task(&mut leds)),
+                pin!(button_task(mode_btn)),
+            ],
+            lilos::exec::ALL_TASKS,
+            Interrupts::Filtered(0xFF),
+        )
+    }
 }
 
 /// A task for running the CAN node processing periodically, or when triggered by the CAN receive
@@ -324,56 +369,109 @@ async fn can_task(mut node: Node<'_>) -> Infallible {
         lilos::time::with_timeout(Duration::from_millis(50), CAN_NOTIFY.until_next()).await;
         let time_us = epoch.elapsed().0 * 1000;
         node.process(time_us);
+    }
+}
 
+static FLASH_MODE: AtomicU8 = AtomicU8::new(0);
+
+async fn button_task(btn_pin: Pin) -> Infallible {
+    let mut down_counter = 0;
+    let mut last_press_time = lilos::time::TickTime::now();
+    const ON_TIME: Duration = Duration::from_secs(30);
+    loop {
+        let pressed = btn_pin.is_high();
+        if pressed {
+            down_counter += 1;
+        } else {
+            down_counter = 0;
+        }
+        if down_counter >= 2 {
+            last_press_time = lilos::time::TickTime::now();
+        }
+
+        if last_press_time.elapsed_duration() < ON_TIME {
+            FLASH_MODE.store(1, Ordering::Relaxed);
+        } else {
+            FLASH_MODE.store(0, Ordering::Relaxed);
+        }
+
+        lilos::time::sleep_for(Duration::from_millis(50)).await;
+    }
+}
+
+async fn led_task(flashers: &mut [LedFlasher<'_>]) -> Infallible {
+    let origin = lilos::time::TickTime::now();
+    loop {
+        let elapsed = origin.elapsed();
+        for f in flashers.iter_mut() {
+            f.run(elapsed);
+        }
+        lilos::time::sleep_for(Millis(20)).await;
     }
 }
 
 const INA_CHANNELS: &[u8] = &[16, 14, 12, 10, 8, 6, 4, 2];
-const ZXC_CHANNELS: &[u8] = &[15, 13, 11, 9, 7, 5, 3, 1];
+const V_CHANNELS: &[u8] = &[15, 13, 11, 9, 7, 5, 3, 1];
 
-async fn main_task(cpu_freq: u32) -> Infallible {
+async fn main_task(cpu_freq: u32, led_commands: &[AtomicU32; 8]) -> Infallible {
     defmt::info!("Configuring ADC");
     adc::configure_adc(cpu_freq);
     defmt::info!("ADC configured");
 
+    for i in 0..8 {
+        defmt::info!("LED{}: {}", i, led_commands[i].load(Ordering::Relaxed));
+    }
+
     loop {
         lilos::time::sleep_for(Duration::from_millis(100)).await;
 
-        critical_section::with(|cs| {
-            let mut borrow = CAN.borrow_ref_mut(cs);
-            let can = borrow.as_mut().unwrap();
-            let status = can.get_protocol_status();
-            
-            //defmt::info!("Bus off: {}, error passive: {}", status.bus_off_status, status.error_passive_state);
-            if status.bus_off_status {
-                // Clear init bit to return to operational
-                pac::FDCAN1.cccr().modify(|w| w.set_init(false));
-                defmt::info!("Recovering from BUS OFF error state")
-            }
-        });
-
-        let mut adc_values = [0u16; 16];
-        for i in 0..0 {
-            adc_values[i] = adc::read_adc(INA_CHANNELS[i] as usize);
-            adc_values[i + 8] = adc::read_adc(ZXC_CHANNELS[i] as usize);
+        let mut current_adc_values = [0u16; 8];
+        let mut voltage_adc_values = [0u16; 8];
+        for i in 0..8 {
+            const INA_OFFSET: u16 = 2;
+            current_adc_values[i] = adc::read_adc(INA_CHANNELS[i] as usize)
+                .await
+                .saturating_sub(INA_OFFSET);
+            voltage_adc_values[i] = adc::read_adc(V_CHANNELS[i] as usize).await;
         }
 
         for i in 0..8 {
-            zencan::OBJECT2000.set(i, adc_values[i]).unwrap();
-            zencan::OBJECT2001.set(i, adc_values[i + 8]).unwrap();
+            zencan::OBJECT2000.set(i, current_adc_values[i]).ok();
+            zencan::OBJECT2001.set(i, voltage_adc_values[i]).ok();
         }
         let scale = zencan::OBJECT2100.get_value();
+        // Scale current to A
+        let currents: [f32; 8] =
+            current_adc_values.map(|counts| (counts as f32 * 10.0) / scale as f32);
+
+        // Counts / input V
+        let v_scale = 169.1;
+        let voltages = voltage_adc_values.map(|counts| counts as f32 / v_scale);
+
         for i in 0..8 {
             zencan::OBJECT2010
-                .set(i, (adc_values[i] * 1000) / scale)
-                .unwrap();
+                .set(i, (currents[i] * 1000.0) as u16)
+                .ok();
+            zencan::OBJECT2011
+                .set(i, (voltages[i] * 1000.0).round() as u16)
+                .ok();
         }
 
         for i in 0..8 {
             zencan::OBJECT2000.set_event_flag(i as u8 + 1).unwrap();
             zencan::OBJECT2001.set_event_flag(i as u8 + 1).unwrap();
             zencan::OBJECT2010.set_event_flag(i as u8 + 1).unwrap();
+            zencan::OBJECT2011.set_event_flag(i as u8 + 1).unwrap();
         }
+
+        for i in 0..8 {
+            if FLASH_MODE.load(Ordering::Relaxed) == 1 {
+                led_commands[i].store((currents[i] * 1000.0) as u32, Ordering::Relaxed);
+            } else {
+                led_commands[i].store(0, Ordering::Relaxed);
+            }
+        }
+        defmt::info!("LED[7] = {}", led_commands[7].load(Ordering::Relaxed));
     }
 }
 
@@ -423,4 +521,3 @@ fn FDCAN1_IT0() {
         };
     }
 }
-

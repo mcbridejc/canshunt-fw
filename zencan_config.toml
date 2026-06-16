@@ -1,11 +1,12 @@
 device_name = "CANShunt"
-software_version = "v0.0.1"
-hardware_version = "rev1"
+software_version = "v0.1.0"
+hardware_version = "rev2"
 heartbeat_period = 1000
+autostart = "enabled"
 
 [identity]
 vendor_id = 0xCAFE
-product_code = 1033
+product_code = 1050
 revision_number = 1
 
 [pdos]
@@ -17,10 +18,10 @@ cob_id = 0x200
 add_node_id = false
 transmission_type = 254
 mappings = [
-    { index=0x2000, sub=1, size=16 },
-    { index=0x2000, sub=2, size=16 },
-    { index=0x2000, sub=3, size=16 },
-    { index=0x2000, sub=4, size=16 },
+    { index=0x2010, sub=1, size=16 },
+    { index=0x2010, sub=2, size=16 },
+    { index=0x2010, sub=3, size=16 },
+    { index=0x2010, sub=4, size=16 },
 ]
 [pdos.tpdo.1]
 enabled = true
@@ -28,10 +29,10 @@ cob_id = 0x201
 add_node_id = false
 transmission_type = 254
 mappings = [
-    { index=0x2000, sub=5, size=16 },
-    { index=0x2000, sub=6, size=16 },
-    { index=0x2000, sub=7, size=16 },
-    { index=0x2000, sub=8, size=16 },
+    { index=0x2010, sub=5, size=16 },
+    { index=0x2010, sub=6, size=16 },
+    { index=0x2010, sub=7, size=16 },
+    { index=0x2010, sub=8, size=16 },
 ]
 [pdos.tpdo.2]
 enabled = true
@@ -39,10 +40,10 @@ cob_id = 0x202
 add_node_id = false
 transmission_type = 254
 mappings = [
-    { index=0x2001, sub=1, size=16 },
-    { index=0x2001, sub=2, size=16 },
-    { index=0x2001, sub=3, size=16 },
-    { index=0x2001, sub=4, size=16 },
+    { index=0x2011, sub=1, size=16 },
+    { index=0x2011, sub=2, size=16 },
+    { index=0x2011, sub=3, size=16 },
+    { index=0x2011, sub=4, size=16 },
 ]
 [pdos.tpdo.3]
 enabled = true
@@ -50,13 +51,13 @@ cob_id = 0x203
 add_node_id = false
 transmission_type = 254
 mappings = [
-    { index=0x2001, sub=5, size=16 },
-    { index=0x2001, sub=6, size=16 },
-    { index=0x2001, sub=7, size=16 },
-    { index=0x2001, sub=8, size=16 },
+    { index=0x2011, sub=5, size=16 },
+    { index=0x2011, sub=6, size=16 },
+    { index=0x2011, sub=7, size=16 },
+    { index=0x2011, sub=8, size=16 },
 ]
 
-# The raw 12-bit ADC readings
+# The raw 12-bit ADC readings for current sensors
 [[objects]]
 index = 0x2000
 parameter_name = "Raw INA183 Input"
@@ -66,9 +67,10 @@ access_type = "ro"
 array_size = 8
 pdo_mapping = "tpdo"
 
+# The raw 12-bit ADC readings for voltage sensors
 [[objects]]
 index = 0x2001
-parameter_name = "Raw ZXCT1110 Input"
+parameter_name = "Raw Voltage Input"
 object_type = "array"
 data_type = "uint16"
 access_type = "ro"
@@ -84,6 +86,15 @@ access_type = "ro"
 array_size = 8
 pdo_mapping = "tpdo"
 
+[[objects]]
+index = 0x2011
+parameter_name = "Voltage (mV)"
+object_type = "array"
+data_type = "uint16"
+access_type = "ro"
+array_size = 8
+pdo_mapping = "tpdo"
+
 # Counts per 10A for INA sensors
 [[objects]]
 index = 0x2100
@@ -91,4 +102,4 @@ parameter_name = "Current Scale"
 object_type = "var"
 data_type = "uint16"
 access_type = "rw"
-default_value = 2195
+default_value = 1943

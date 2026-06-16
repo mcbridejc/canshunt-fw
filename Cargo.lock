@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary-int"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "993a810118f8f37e9c4411c86f1c4c940a09a7ab34b7bf2d88d06f50c553fab7"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -47,13 +53,15 @@ dependencies = [
  "critical-section",
  "defmt 1.0.1",
  "fdcan",
+ "futures",
  "hash32",
  "lilos",
+ "num-traits",
  "panic-probe",
  "rtt-target",
  "stm32-hal2",
  "stm32-metapac",
- "zencan-build",
+ "zencan-build 0.0.4",
  "zencan-node",
 ]
 
@@ -233,9 +241,9 @@ dependencies = [
 
 [[package]]
 name = "embedded-io"
-version = "0.6.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
 
 [[package]]
 name = "equivalent"
@@ -866,20 +874,55 @@ dependencies = [
 
 [[package]]
 name = "zencan-build"
-version = "0.0.2"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63f974ba39e3eda16b259f3acb4ee3b3b8bfd34082cef7178c6aed77c1657e03"
 dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
  "snafu",
  "syn",
- "zencan-common",
+ "zencan-common 0.0.1",
+]
+
+[[package]]
+name = "zencan-build"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfa59d4afa4934ae1e3909234882641f61fd36459daef84b69a1f34060fecc80"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "snafu",
+ "syn",
+ "zencan-common 0.0.4",
 ]
 
 [[package]]
 name = "zencan-common"
-version = "0.0.2"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25fbb1e254c892956b3cc3a81724b39ebce2f2d544254af90d69ba9ab0468793"
 dependencies = [
+ "critical-section",
+ "defmt-or-log",
+ "int-enum",
+ "regex",
+ "serde",
+ "snafu",
+ "toml",
+]
+
+[[package]]
+name = "zencan-common"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a9c7d823d3f2bd914c450bd06d80acc3486727b27715559599a193822cb67b3"
+dependencies = [
+ "arbitrary-int",
+ "chrono",
  "critical-section",
  "defmt 1.0.1",
  "defmt-or-log",
@@ -893,18 +936,22 @@ dependencies = [
 [[package]]
 name = "zencan-macro"
 version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "338af6c9e17dba97f80c804f2c5a77bc04546441512dda41d516fbcbfbc74867"
 dependencies = [
  "darling",
  "proc-macro2",
  "quote",
  "syn",
- "zencan-build",
- "zencan-common",
+ "zencan-build 0.0.1",
+ "zencan-common 0.0.1",
 ]
 
 [[package]]
 name = "zencan-node"
-version = "0.0.2"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "385cede2ff32dc91e6adaf72b3678bf38b517f155a67b4ff6e9dbf913a6f87db"
 dependencies = [
  "crc16",
  "critical-section",
@@ -914,6 +961,6 @@ dependencies = [
  "futures",
  "portable-atomic",
  "static_cell",
- "zencan-common",
+ "zencan-common 0.0.4",
  "zencan-macro",
 ]

@@ -1,14 +1,23 @@
 import can
+import click
 import numpy as np
 import struct
 
 
-def main():
+@click.command()
+@click.option("--raw", is_flag=True, help="Sample raw ADC values.")
+def main(raw):
+
+    if raw: 
+        base_address = 0x300
+    else: 
+        base_address = 0x200
+
     filters = [
-        {"can_id": 0x200, "can_mask": 0x7FF, "extended": False},
-        {"can_id": 0x201, "can_mask": 0x7FF, "extended": False},
-        {"can_id": 0x202, "can_mask": 0x7FF, "extended": False},
-        {"can_id": 0x203, "can_mask": 0x7FF, "extended": False},
+        {"can_id": base_address, "can_mask": 0x7FF, "extended": False},
+        {"can_id": base_address + 1, "can_mask": 0x7FF, "extended": False},
+        {"can_id": base_address + 2, "can_mask": 0x7FF, "extended": False},
+        {"can_id": base_address + 3, "can_mask": 0x7FF, "extended": False},
     ]
     bus = can.Bus(interface="socketcan", channel="can0", can_filters=filters)
 
@@ -18,7 +27,7 @@ def main():
 
     while True:
         msg = bus.recv()
-        msgs[msg.arbitration_id - 0x200].append(msg.data)
+        msgs[msg.arbitration_id - base_address].append(msg.data)
 
         if all([len(f) > N_SAMPLES for f in msgs]):
             break
@@ -32,11 +41,18 @@ def main():
 
     averages = np.array([average(m) for m in msgs]).flatten()
     
-    for i in range(8):
-        ina = averages[i]
-        zxc = averages[i+8]
-        print(f"CH{i}: INA={ina:.1f} ZXC={zxc:.1f}")
-    
+    if raw:
+        for i in range(8):
+            ina = averages[i]
+            zxc = averages[i + 8]
+            print(f"CH{i}: INA={ina:.1f} V={zxc:.1f}")
+    else:
+        for i in range(8):
+
+            current = averages[i]
+            voltage = averages[i + 8]
+            print(F"CH{i}: I={current/1000.0:.3f}A, V={voltage/1000.0:.3f}V")
+                  
     bus.shutdown()
 
 

@@ -9,16 +9,18 @@ cortex-m-rt = "0.7.5"
 critical-section = "1.2.0"
 defmt = "1.0.1"
 fdcan = { version = "0.2.1", features = ["fdcan_g0_g4_l5"] }
+futures = {version = "0.3.31", default-features = false }
 hash32 = "1.0.0"
 lilos = { version = "1.3.0", path = "../lilos/os" }
+num-traits = { version = "0.2.19", default-features = false }
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 rtt-target = { version = "0.6.1", features = ["defmt"] }
 stm32-hal2 = { version = "2.1.8", path = "../stm32-hal", features = ["l552", "l5rt"] }
 stm32-metapac = {version = "18.0.0", features = ["stm32l552rc"] }
-zencan-node = { path = "../zencan/zencan-node", default-features = false, features = ["defmt"]}
+zencan-node = { version = "0.0.4", default-features = false, features = ["defmt"]}
 
 [build-dependencies]
-zencan-build = { path = "../zencan/zencan-build" }
+zencan-build = { version = "0.0.4" }
 
 
 [profile.dev]

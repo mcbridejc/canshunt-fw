@@ -1,6 +1,10 @@
-use stm32_hal2::adc::ClockMode;
-use stm32_metapac::{self as pac, adc::vals};
+use core::sync::atomic::{AtomicBool, Ordering};
 
+use lilos::exec::Notify;
+use stm32_hal2::pac::interrupt;
+use stm32_metapac::{self as pac};
+
+#[allow(dead_code)]
 fn set_adc_sequence_value(adc: pac::adc::Adc, n: usize, chan: u8) {
     match n {
         0 => adc.sqr1().modify(|w| w.set_sq(0, chan)),
@@ -22,6 +26,8 @@ fn set_adc_sequence_value(adc: pac::adc::Adc, n: usize, chan: u8) {
         _ => unreachable!(),
     }
 }
+
+static ADC_NOTIFY: Notify = Notify::new();
 
 /// Setup the ADC for reading the analog channels
 pub fn configure_adc(cpufreq: u32) {
@@ -66,9 +72,17 @@ pub fn configure_adc(cpufreq: u32) {
             .smpr(reg)
             .modify(|w| w.set_smp(ch, pac::adc::vals::SampleTime::CYCLES47_5));
     }
+
+    // Enable end-of-conversion interrupt
+    pac::ADC1.ier().modify(|w| w.set_eocie(true));
+    unsafe {
+        cortex_m::peripheral::NVIC::unmask(pac::Interrupt::ADC1_2);
+    }
 }
 
-pub fn read_adc(channel: usize) -> u16 {
+static ADC_FLAG: AtomicBool = AtomicBool::new(false);
+
+pub async fn read_adc(channel: usize) -> u16 {
     // Set channel
     pac::ADC1.sqr1().modify(|w| {
         w.set_sq(0, channel as u8);
@@ -79,8 +93,19 @@ pub fn read_adc(channel: usize) -> u16 {
     pac::ADC1.isr().write(|w| w.set_eoc(true));
     // Start sampling
     pac::ADC1.cr().modify(|w| w.set_adstart(true));
+
     // Wait for complete
-    while !pac::ADC1.isr().read().eoc() {}
+    ADC_NOTIFY
+        .until_racy(|| ADC_FLAG.swap(false, Ordering::Relaxed))
+        .await;
+
     // Read result
     pac::ADC1.dr().read().regular_data()
+}
+
+#[interrupt]
+fn ADC1_2() {
+    pac::ADC1.isr().modify(|w| w.set_eoc(true));
+    ADC_FLAG.store(true, Ordering::Relaxed);
+    ADC_NOTIFY.notify();
 }

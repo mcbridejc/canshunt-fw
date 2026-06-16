@@ -1,0 +1,41 @@
+
+[tpdo.0]
+enabled = true
+cob_id = 0x300
+transmission_type = 254
+mappings = [
+    { index=0x2000, sub=1, size=16 },
+    { index=0x2000, sub=2, size=16 },
+    { index=0x2000, sub=3, size=16 },
+    { index=0x2000, sub=4, size=16 },
+]
+[tpdo.1]
+enabled = true
+cob_id = 0x301
+transmission_type = 254
+mappings = [
+    { index=0x2000, sub=5, size=16 },
+    { index=0x2000, sub=6, size=16 },
+    { index=0x2000, sub=7, size=16 },
+    { index=0x2000, sub=8, size=16 },
+]
+[tpdo.2]
+enabled = true
+cob_id = 0x302
+transmission_type = 254
+mappings = [
+    { index=0x2001, sub=1, size=16 },
+    { index=0x2001, sub=2, size=16 },
+    { index=0x2001, sub=3, size=16 },
+    { index=0x2001, sub=4, size=16 },
+]
+[tpdo.3]
+enabled = true
+cob_id = 0x303
+transmission_type = 254
+mappings = [
+    { index=0x2001, sub=5, size=16 },
+    { index=0x2001, sub=6, size=16 },
+    { index=0x2001, sub=7, size=16 },
+    { index=0x2001, sub=8, size=16 },
+]
