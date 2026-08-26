@@ -1,5 +1,5 @@
 device_name = "CANShunt"
-software_version = "v0.1.0"
+software_version = "v0.2.0"
 hardware_version = "rev2"
 heartbeat_period = 1000
 autostart = "enabled"
@@ -7,7 +7,7 @@ autostart = "enabled"
 [identity]
 vendor_id = 0xCAFE
 product_code = 1050
-revision_number = 1
+revision_number = 2
 
 [pdos]
 num_tpdo = 4
@@ -99,6 +99,7 @@ pdo_mapping = "tpdo"
 [[objects]]
 index = 0x2100
 parameter_name = "Current Scale"
+description = "Current calibration factor. Factory set, but can be adjusted."
 object_type = "var"
 data_type = "uint16"
 access_type = "rw"
