@@ -9,6 +9,7 @@ cortex-m-rt = "0.7.5"
 critical-section = "1.2.0"
 defmt = "1.0.1"
 embedded-can = "0.4.1"
+embedded-io = "0.7.1"
 fdcan = { version = "0.2.1", features = ["fdcan_g0_g4_l5"] }
 futures = {version = "0.3.31", default-features = false }
 hash32 = "1.0.0"
@@ -18,6 +19,7 @@ lilos = { version = "1.3.0", path = "../lilos/os" }
 num-traits = { version = "0.2.19", default-features = false }
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 rtt-target = { version = "0.6.1", features = ["defmt"] }
+rjmp-stm32-flash = { path = "../rjmp-stm32-flash", features = ["stm32l552rc", "defmt"] }
 stm32-hal2 = { version = "2.1.8", git = "https://github.com/mcbridejc/stm32-hal", branch="fix-l5-vrefint", features = ["l552", "l5rt", "usb"] }
 stm32-metapac = {version = "18.0.0", features = ["stm32l552rc"] }
 usb-device = { version = "0.3.2", features = ["defmt"] }

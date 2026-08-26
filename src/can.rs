@@ -71,7 +71,6 @@ pub fn queue_usb_to_can(msg: CanMessage) {
 ///
 /// Will move messages until either the hardware FIFO is full, or NODE_MBOX is out of messages.
 fn transmit_can_messages(can: &mut FdCan<FdCan1, NormalOperationMode>) {
-    defmt::info!("CAN TRANSMIT");
     loop {
         // Check if queue is full
         // Driver lacks API for this so go straight to register
@@ -190,7 +189,6 @@ pub fn init_can() {
 // queue them in the background.
 #[interrupt]
 fn FDCAN1_IT0() {
-    defmt::info!("CAN IRQ");
     // Safety: No other IRQs access CAN, so no critical section is required in the IRQ
     let cs = unsafe { critical_section::CriticalSection::new() };
 

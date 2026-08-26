@@ -2,6 +2,7 @@
 #![no_main]
 
 use core::{
+    cell::RefCell,
     convert::Infallible,
     pin::pin,
     sync::atomic::{AtomicU8, AtomicU32, Ordering},
@@ -23,13 +24,20 @@ use stm32_hal2::{
     gpio::{Pin, PinMode, Port},
 };
 
+use rjmp_stm32_flash::Stm32l5PagePair;
 use stm32_metapac::{self as pac, RCC};
-use zencan_node::{Callbacks, Node, common::NodeId, object_dict::ObjectAccess};
+use zencan_node::{
+    Callbacks, Node,
+    common::NodeId,
+    object_dict::{ODEntry, ObjectAccess},
+    restore_stored_comm_objects, restore_stored_objects,
+};
 
 use crate::led::LedFlasher;
 
 mod adc;
 mod can;
+mod flash;
 mod led;
 mod serial;
 mod usb;
@@ -44,6 +52,9 @@ static CAN_NOTIFY: Notify = Notify::new();
 fn notify_can_task() {
     CAN_NOTIFY.notify();
 }
+
+const PERSIST_PAGE_A: usize = 124;
+const PERSIST_PAGE_B: usize = 126;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -148,10 +159,39 @@ fn main() -> ! {
 
     zencan::OBJECT1018.set_serial(serial::get_serial());
 
-    let callbacks = Callbacks::default();
+    // Two 4 KiB regions formed from the final four 2 KiB pages in flash bank 2.
+    let persist_flash = RefCell::new(Stm32l5PagePair::new(PERSIST_PAGE_A, PERSIST_PAGE_B, 2));
+    let default_node_id = NodeId::new(10).unwrap();
+    let node_id = flash::read_saved_node_id(&*persist_flash.borrow(), default_node_id);
+    flash::read_persisted_objects(&*persist_flash.borrow(), |stored_data| {
+        restore_stored_objects(&zencan::OD_TABLE, stored_data)
+    });
+
+    let mut store_node_config = |node_id: NodeId| {
+        flash::store_node_config(&mut *persist_flash.borrow_mut(), node_id);
+    };
+    let mut store_objects = |reader: &mut dyn embedded_io::Read<Error = Infallible>, len: usize| {
+        flash::store_objects(&mut *persist_flash.borrow_mut(), reader, len);
+    };
+    let mut reset_app = |od: &[ODEntry]| {
+        flash::read_persisted_objects(&*persist_flash.borrow(), |stored_data| {
+            restore_stored_objects(od, stored_data)
+        });
+    };
+    let mut reset_comms = |od: &[ODEntry]| {
+        flash::read_persisted_objects(&*persist_flash.borrow(), |stored_data| {
+            restore_stored_comm_objects(od, stored_data)
+        });
+    };
+
+    let mut callbacks = Callbacks::default();
+    callbacks.store_node_config = Some(&mut store_node_config);
+    callbacks.store_objects = Some(&mut store_objects);
+    callbacks.reset_app = Some(&mut reset_app);
+    callbacks.reset_comms = Some(&mut reset_comms);
 
     let node = Node::new(
-        NodeId::new(10).unwrap(),
+        node_id,
         callbacks,
         &zencan::NODE_MBOX,
         &zencan::NODE_STATE,

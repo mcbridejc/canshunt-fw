@@ -65,6 +65,7 @@ dependencies = [
  "critical-section",
  "defmt 1.0.1",
  "embedded-can",
+ "embedded-io",
  "fdcan",
  "futures",
  "hash32 1.0.0",
@@ -73,9 +74,10 @@ dependencies = [
  "lilos",
  "num-traits",
  "panic-probe",
+ "rjmp-stm32-flash",
  "rtt-target",
  "stm32-hal2",
- "stm32-metapac",
+ "stm32-metapac 18.0.0",
  "usb-device",
  "usbd-dfu-rt",
  "usbd-gscan",
@@ -271,6 +273,12 @@ name = "embedded-io"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
+
+[[package]]
+name = "embedded-storage"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a21dea9854beb860f3062d10228ce9b976da520a73474aed3171ec276bc0c032"
 
 [[package]]
 name = "equivalent"
@@ -667,6 +675,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
+name = "rjmp-stm32-flash"
+version = "0.1.0"
+dependencies = [
+ "cortex-m",
+ "defmt 1.0.1",
+ "embedded-io",
+ "embedded-storage",
+ "stm32-metapac 19.0.0",
+]
+
+[[package]]
 name = "rtt-target"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -810,6 +829,15 @@ name = "stm32-metapac"
 version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fd8ec3a292a0d9fc4798416a61b21da5ae50341b2e7b8d12e662bf305366097"
+dependencies = [
+ "cortex-m",
+]
+
+[[package]]
+name = "stm32-metapac"
+version = "19.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a411079520dbccc613af73172f944b7cf97ba84e3bd7381a0352b6ec7bfef03b"
 dependencies = [
  "cortex-m",
 ]
