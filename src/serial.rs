@@ -42,14 +42,14 @@ lazy_static! {
                 _ => '_',
             }
         }
-        let _ = out.write_char(nibble_to_char(((serial >> 0) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 4) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 8) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 12) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 16) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 20) & 0x0F) as u8));
-        let _ = out.write_char(nibble_to_char(((serial >> 24) & 0x0F) as u8));
         let _ = out.write_char(nibble_to_char(((serial >> 28) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 24) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 20) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 16) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 12) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 8) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 4) & 0x0F) as u8));
+        let _ = out.write_char(nibble_to_char(((serial >> 0) & 0x0F) as u8));
 
         out
     };
