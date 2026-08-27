@@ -99,8 +99,17 @@ pdo_mapping = "tpdo"
 [[objects]]
 index = 0x2100
 parameter_name = "Current Scale"
-description = "Current calibration factor. Factory set, but can be adjusted."
+#description = "Current calibration factor. Factory set, but can be adjusted."
 object_type = "var"
 data_type = "uint16"
 access_type = "rw"
 default_value = 1943
+
+[[objects]]
+index = 0x2200
+parameter_name = "Bitrate Config"
+#description = "0 - 1000k, 1 - 800k, 2 - 500k, 3 - 250k, 4 - 125k, 5 - 100k, 6 - 50k"
+object_type = "var"
+data_type = "uint8"
+access_type = "rw"
+default_value = 2

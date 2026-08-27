@@ -4,6 +4,7 @@
 use core::{
     cell::RefCell,
     convert::Infallible,
+    num::NonZeroU8,
     pin::pin,
     sync::atomic::{AtomicU8, AtomicU32, Ordering},
     time::Duration,
@@ -55,6 +56,20 @@ fn notify_can_task() {
 
 const PERSIST_PAGE_A: usize = 124;
 const PERSIST_PAGE_B: usize = 126;
+
+static APPLIED_BITRATE: AtomicU8 = AtomicU8::new(u8::MAX);
+
+/// Check the current configured CAN bitrate, and update the controller if it has changed
+fn check_can_bitrate() {
+    let current_bitrate = zencan::OBJECT2200.get_value();
+
+    critical_section::with(|_| {
+        if current_bitrate != APPLIED_BITRATE.load(Ordering::Relaxed) {
+            APPLIED_BITRATE.store(current_bitrate, Ordering::Relaxed);
+            can::set_bitrate(current_bitrate as usize);
+        }
+    });
+}
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -268,6 +283,9 @@ async fn can_task(mut node: Node<'_>) -> Infallible {
         lilos::time::with_timeout(Duration::from_millis(50), CAN_NOTIFY.until_next()).await;
         let time_us = epoch.elapsed().0 * 1000;
         node.process(time_us);
+
+        // Check for change in CAN bitrate
+        check_can_bitrate();
     }
 }
 

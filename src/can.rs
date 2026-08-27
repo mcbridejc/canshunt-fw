@@ -1,10 +1,13 @@
-use core::{cell::RefCell, num::NonZeroU8};
+use core::{
+    cell::RefCell,
+    num::{NonZero, NonZeroU8},
+};
 
 use crate::pac;
 use critical_section::Mutex;
 use fdcan::{
     FdCan, NormalOperationMode,
-    config::{DataBitTiming, FdCanConfig, GlobalFilter},
+    config::{DataBitTiming, FdCanConfig, GlobalFilter, NominalBitTiming},
     filter::{StandardFilter, StandardFilterSlot},
 };
 use heapless::spsc::Queue;
@@ -28,6 +31,57 @@ static USB_TO_CAN: Mutex<RefCell<Queue<CanMessage, USB_BUFFER_DEPTH>>> =
     Mutex::new(RefCell::new(Queue::new()));
 static CAN_TO_USB: Mutex<RefCell<Queue<CanMessage, USB_BUFFER_DEPTH>>> =
     Mutex::new(RefCell::new(Queue::new()));
+
+struct BitRateConfig {
+    presc: NonZeroU8,
+    seg1: NonZeroU8,
+    seg2: NonZeroU8,
+}
+
+const BITRATE_TABLE: &[BitRateConfig] = &[
+    // 1000k
+    BitRateConfig {
+        presc: NonZeroU8::new(1).unwrap(),
+        seg1: NonZeroU8::new(6).unwrap(),
+        seg2: NonZeroU8::new(1).unwrap(),
+    },
+    // 800k
+    BitRateConfig {
+        presc: NonZeroU8::new(1).unwrap(),
+        seg1: NonZeroU8::new(8).unwrap(),
+        seg2: NonZeroU8::new(1).unwrap(),
+    },
+    // 500k
+    BitRateConfig {
+        presc: NonZeroU8::new(1).unwrap(),
+        seg1: NonZeroU8::new(13).unwrap(),
+        seg2: NonZeroU8::new(2).unwrap(),
+    },
+    // 250k
+    BitRateConfig {
+        presc: NonZeroU8::new(2).unwrap(),
+        seg1: NonZeroU8::new(13).unwrap(),
+        seg2: NonZeroU8::new(2).unwrap(),
+    },
+    // 125k
+    BitRateConfig {
+        presc: NonZeroU8::new(4).unwrap(),
+        seg1: NonZeroU8::new(13).unwrap(),
+        seg2: NonZeroU8::new(2).unwrap(),
+    },
+    // 100k
+    BitRateConfig {
+        presc: NonZeroU8::new(5).unwrap(),
+        seg1: NonZeroU8::new(13).unwrap(),
+        seg2: NonZeroU8::new(2).unwrap(),
+    },
+    // 50k
+    BitRateConfig {
+        presc: NonZeroU8::new(10).unwrap(),
+        seg1: NonZeroU8::new(13).unwrap(),
+        seg2: NonZeroU8::new(2).unwrap(),
+    },
+];
 
 fn zencan_to_fdcan_header(msg: &CanMessage) -> fdcan::frame::TxFrameHeader {
     let id: fdcan::id::Id = match msg.id() {
@@ -180,6 +234,25 @@ pub fn init_can() {
         CAN.borrow_ref_mut(cs).replace(can);
     });
     unsafe { cortex_m::peripheral::NVIC::unmask(pac::Interrupt::FDCAN1_IT0) };
+}
+
+pub fn set_bitrate(n: usize) {
+    let cfg = &BITRATE_TABLE[n.min(BITRATE_TABLE.len() - 1)];
+
+    defmt::info!("Changing bitrate to {}", n);
+
+    critical_section::with(|cs| {
+        let can = CAN.take(cs).unwrap();
+        let mut can = can.into_config_mode();
+
+        can.set_nominal_bit_timing(NominalBitTiming {
+            prescaler: cfg.presc.into(),
+            seg1: cfg.seg1,
+            seg2: cfg.seg2,
+            sync_jump_width: NonZeroU8::new(1).unwrap(),
+        });
+        CAN.replace(cs, Some(can.into_normal()));
+    })
 }
 
 // The CAN interrupt moves messages between the FDCAN peripheral and the node mailbox
