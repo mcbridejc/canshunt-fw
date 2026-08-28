@@ -1,6 +1,7 @@
 use core::{
     cell::RefCell,
-    num::{NonZero, NonZeroU8},
+    num::NonZeroU8,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use crate::pac;
@@ -31,6 +32,32 @@ static USB_TO_CAN: Mutex<RefCell<Queue<CanMessage, USB_BUFFER_DEPTH>>> =
     Mutex::new(RefCell::new(Queue::new()));
 static CAN_TO_USB: Mutex<RefCell<Queue<CanMessage, USB_BUFFER_DEPTH>>> =
     Mutex::new(RefCell::new(Queue::new()));
+static PHYSICAL_CAN_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Get flag indicating whether CAN bridging has been enabled
+pub fn physical_can_enabled() -> bool {
+    PHYSICAL_CAN_ENABLED.load(Ordering::Acquire)
+}
+
+/// Enable normal gs_usb bridging or isolate USB traffic to the local CANopen node.
+pub fn set_physical_can_enabled(enabled: bool) {
+    if enabled {
+        PHYSICAL_CAN_ENABLED.store(true, Ordering::Release);
+        transmit_notify_handler();
+        return;
+    }
+
+    PHYSICAL_CAN_ENABLED.store(false, Ordering::Release);
+    enable_can_xcvr(false);
+    critical_section::with(|cs| {
+        while USB_TO_CAN.borrow_ref_mut(cs).dequeue().is_some() {}
+        while CAN_TO_USB.borrow_ref_mut(cs).dequeue().is_some() {}
+
+        // Cancel anything already handed to FDCAN so it cannot escape when bridging resumes.
+        let pending = pac::FDCAN1.txbrp().read().0;
+        pac::FDCAN1.txbcr().write(|w| w.0 = pending);
+    });
+}
 
 struct BitRateConfig {
     presc: NonZeroU8,
@@ -166,6 +193,10 @@ fn enable_can_xcvr(enable: bool) {
 /// A handler for the zencan transmit notify callback. It accesses the CAN peripheral in a critical
 /// section so it can be called from any context
 pub fn transmit_notify_handler() {
+    if !physical_can_enabled() {
+        // When CAN bridging is disabled, the USB task handles pulling messages from zencan.
+        return;
+    }
     // Enable transceiver
     enable_can_xcvr(true);
     critical_section::with(|cs| {
@@ -286,15 +317,19 @@ fn FDCAN1_IT0() {
             };
             let msg =
                 zencan_node::common::messages::CanMessage::new(id, &buffer[..msg.len as usize]);
-            enqueue_can_to_usb(msg);
-            // Ignore error -- as an Err is returned for messages that are not consumed by the node
-            // stack
-            crate::zencan::NODE_MBOX.store_message(msg).ok();
+            if physical_can_enabled() {
+                enqueue_can_to_usb(msg);
+                // Ignore error -- as an Err is returned for messages that are not consumed by the
+                // node stack
+                crate::zencan::NODE_MBOX.store_message(msg).ok();
+            }
         }
     }
 
     if can.has_interrupt(fdcan::interrupt::Interrupt::TxComplete) {
         can.clear_interrupt(fdcan::interrupt::Interrupt::TxComplete);
-        transmit_can_messages(can);
+        if physical_can_enabled() {
+            transmit_can_messages(can);
+        }
     }
 }

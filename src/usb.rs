@@ -12,7 +12,12 @@ use stm32_hal2::{
     usb::{Peripheral, UsbBus},
 };
 
-use usb_device::{bus::UsbBusAllocator, prelude::*};
+use usb_device::{
+    bus::{UsbBus as UsbBusTrait, UsbBusAllocator},
+    class_prelude::{ControlIn, ControlOut, UsbClass},
+    control::{Recipient, RequestType},
+    prelude::*,
+};
 use usbd_dfu_rt::{DfuRuntimeClass, DfuRuntimeOps};
 use usbd_gscan::{
     Device, GsCan,
@@ -85,6 +90,56 @@ const TIMING_DATA: CanBitTimingConst = CanBitTimingConst {
 };
 
 static CAN_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+// Private CANShunt protocol on endpoint zero. It adds no descriptors or endpoints and uses a
+// device-recipient request number outside the gs_usb request range.
+const CANSHUNT_CONTROL_REQUEST: u8 = 0xC0;
+const CANSHUNT_CONTROL_MAGIC: u16 = 0x4353;
+const CANSHUNT_CONTROL_VERSION: u8 = 1;
+
+struct CanshuntControl;
+
+impl<B: UsbBusTrait> UsbClass<B> for CanshuntControl {
+    fn reset(&mut self) {
+        // A newly enumerating standard gs_usb host must always see normal bridge behavior.
+        crate::can::set_physical_can_enabled(true);
+    }
+
+    fn control_out(&mut self, xfer: ControlOut<B>) {
+        let request = *xfer.request();
+        if request.request_type != RequestType::Vendor
+            || request.recipient != Recipient::Device
+            || request.request != CANSHUNT_CONTROL_REQUEST
+            || request.index != CANSHUNT_CONTROL_MAGIC
+        {
+            return;
+        }
+
+        if xfer.data() != [CANSHUNT_CONTROL_VERSION] || request.value > 1 {
+            xfer.reject().ok();
+            return;
+        }
+
+        crate::can::set_physical_can_enabled(request.value == 0);
+        xfer.accept().ok();
+    }
+
+    fn control_in(&mut self, xfer: ControlIn<B>) {
+        let request = *xfer.request();
+        if request.request_type != RequestType::Vendor
+            || request.recipient != Recipient::Device
+            || request.request != CANSHUNT_CONTROL_REQUEST
+            || request.index != CANSHUNT_CONTROL_MAGIC
+        {
+            return;
+        }
+
+        let local_only = !crate::can::physical_can_enabled();
+        xfer.accept_with(&[CANSHUNT_CONTROL_VERSION, local_only as u8])
+            .ok();
+    }
+}
+
 struct GsCanDevice {}
 
 impl Device for GsCanDevice {
@@ -147,7 +202,9 @@ impl Device for GsCanDevice {
 
         crate::zencan::NODE_MBOX.store_message(msg).ok();
         crate::notify_can_task();
-        crate::can::queue_usb_to_can(msg);
+        if crate::can::physical_can_enabled() {
+            crate::can::queue_usb_to_can(msg);
+        }
         crate::can::transmit_notify_handler();
     }
 }
@@ -210,6 +267,7 @@ static BUS_ALLOCATOR: Global<UsbBusAllocator<UsbBus<Peripheral>>> = Global::empt
 static USB_DEV: Global<UsbDevice<'static, UsbBus<Peripheral>>> = Global::empty();
 static DFU: Global<DfuRuntimeClass<DfuOps>> = Global::empty();
 static GSCAN: Global<GsCan<'static, UsbBus<Peripheral>, GsCanDevice>> = Global::empty();
+static CONTROL: Global<CanshuntControl> = Global::empty();
 
 pub async fn usb_task() -> Infallible {
     let dp = unsafe { hal::pac::Peripherals::steal() };
@@ -237,6 +295,7 @@ pub async fn usb_task() -> Infallible {
     USB_DEV.init(usb_dev);
     GSCAN.init(gscan);
     DFU.init(dfu);
+    CONTROL.init(CanshuntControl);
 
     unsafe { cortex_m::peripheral::NVIC::unmask(hal::pac::Interrupt::USB_FS) };
     let mut last_time = lilos::time::TickTime::now();
@@ -245,6 +304,15 @@ pub async fn usb_task() -> Infallible {
             cortex_m::interrupt::disable();
             defmt::info!("Rebooting to bootloader");
             reset_to_bootloader();
+        }
+        if !crate::can::physical_can_enabled() {
+            while let Some(msg) = crate::zencan::NODE_MBOX.next_transmit_message() {
+                if let Some(frame) = zencan_to_gscan_frame(msg) {
+                    GSCAN.with(|gscan| {
+                        gscan.transmit(0, &frame, FrameFlag::empty());
+                    });
+                }
+            }
         }
         while let Some(msg) = crate::can::dequeue_can_to_usb() {
             if !CAN_ACTIVE.load(Ordering::Relaxed) {
@@ -274,6 +342,7 @@ fn USB_FS() {
     let usb_dev = unsafe { USB_DEV.steal() };
     let dfu = unsafe { DFU.steal() };
     let gscan = unsafe { GSCAN.steal() };
+    let control = unsafe { CONTROL.steal() };
 
-    usb_dev.poll(&mut [gscan, dfu]);
+    usb_dev.poll(&mut [control, gscan, dfu]);
 }

@@ -4,7 +4,6 @@
 use core::{
     cell::RefCell,
     convert::Infallible,
-    num::NonZeroU8,
     pin::pin,
     sync::atomic::{AtomicU8, AtomicU32, Ordering},
     time::Duration,
