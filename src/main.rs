@@ -363,6 +363,7 @@ async fn led_task(flashers: &mut [LedFlasher<'_>]) -> Infallible {
 
 const INA_CHANNELS: &[u8] = &[16, 14, 12, 10, 8, 6, 4, 2];
 const V_CHANNELS: &[u8] = &[15, 13, 11, 9, 7, 5, 3, 1];
+const INA_OFFSET: u16 = 4;
 
 async fn main_task(cpu_freq: u32, led_commands: &[AtomicU32; 8]) -> Infallible {
     adc::configure_adc(cpu_freq);
@@ -373,10 +374,7 @@ async fn main_task(cpu_freq: u32, led_commands: &[AtomicU32; 8]) -> Infallible {
         let mut current_adc_values = [0u16; 8];
         let mut voltage_adc_values = [0u16; 8];
         for i in 0..8 {
-            const INA_OFFSET: u16 = 2;
-            current_adc_values[i] = adc::read_adc(INA_CHANNELS[i] as usize)
-                .await
-                .saturating_sub(INA_OFFSET);
+            current_adc_values[i] = adc::read_adc(INA_CHANNELS[i] as usize).await;
             voltage_adc_values[i] = adc::read_adc(V_CHANNELS[i] as usize).await;
         }
 
@@ -386,8 +384,8 @@ async fn main_task(cpu_freq: u32, led_commands: &[AtomicU32; 8]) -> Infallible {
         }
         let scale = zencan::OBJECT2100.get_value();
         // Scale current to A
-        let currents: [f32; 8] =
-            current_adc_values.map(|counts| (counts as f32 * 10.0) / scale as f32);
+        let currents: [f32; 8] = current_adc_values
+            .map(|counts| (counts.saturating_sub(INA_OFFSET) as f32 * 10.0) / scale as f32);
 
         // Counts / input V
         let v_scale = 169.1;
