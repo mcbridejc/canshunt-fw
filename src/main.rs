@@ -98,7 +98,10 @@ fn main() -> ! {
 
     RCC.apb1enr1().modify(|w| w.set_pwren(true));
     let _usb_dm = Pin::new(Port::A, 11, PinMode::Alt(10));
-    let _usb_dp = Pin::new(Port::A, 12, PinMode::Alt(10));
+    // Force a USB detach during startup. Full-speed devices advertise their presence with a
+    // pull-up on D+, so holding D+ low makes a warm MCU reset visible to the host as an unplug.
+    let mut usb_dp = Pin::new(Port::A, 12, PinMode::Output);
+    usb_dp.set_low();
     stm32_hal2::usb::enable_usb_pwr();
 
     let _ina0 = Pin::new(Port::B, 1, PinMode::Analog);
@@ -157,6 +160,12 @@ fn main() -> ! {
     let systick_freq = clock_cfg.hclk();
     let sysclk_freq = clock_cfg.sysclk();
     let usb_freq = clock_cfg.usb();
+
+    // USB 2.0 requires at least 2.5 us of an SE0 state for detach detection. Use 10 ms so host
+    // controller scheduling cannot hide a fast firmware reset, then return D+ to the USB block;
+    // the USB driver will enable the internal D+ pull-up when it starts.
+    cortex_m::asm::delay(sysclk_freq / 100);
+    let _usb_dp = Pin::new(Port::A, 12, PinMode::Alt(10));
 
     defmt::info!("APB1: {}", apb1_freq);
     defmt::info!("systick: {}", systick_freq);
