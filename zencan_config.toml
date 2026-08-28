@@ -104,6 +104,7 @@ object_type = "var"
 data_type = "uint16"
 access_type = "rw"
 default_value = 1943
+persist = true
 
 [[objects]]
 index = 0x2200
@@ -113,3 +114,4 @@ object_type = "var"
 data_type = "uint8"
 access_type = "rw"
 default_value = 2
+persist = true
