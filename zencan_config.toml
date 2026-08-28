@@ -115,3 +115,10 @@ data_type = "uint8"
 access_type = "rw"
 default_value = 2
 persist = true
+
+[[objects]]
+index = 0x2f80
+parameter_name = "Identify Command"
+object_type = "var"
+data_type = "uint8"
+access_type = "rw"

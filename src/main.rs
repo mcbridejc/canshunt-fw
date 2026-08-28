@@ -70,6 +70,14 @@ fn check_can_bitrate() {
     });
 }
 
+fn check_identify_command() {
+    // If identify command has been raised, clear it and signal the LED task to strobe
+    if zencan::OBJECT2F80.get_value() != 0 {
+        zencan::OBJECT2F80.set_value(0);
+        IDENT_STROBE.store(true, Ordering::Relaxed);
+    }
+}
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     let channels = rtt_init! {
@@ -285,6 +293,9 @@ async fn can_task(mut node: Node<'_>) -> Infallible {
 
         // Check for change in CAN bitrate
         check_can_bitrate();
+
+        // Check if an identify command has been received
+        check_identify_command();
     }
 }
 
@@ -336,9 +347,15 @@ async fn led_task(flashers: &mut [LedFlasher<'_>]) -> Infallible {
                 lilos::time::sleep_for(STROBE_DELAY).await;
             }
         }
-        let elapsed = origin.elapsed();
-        for f in flashers.iter_mut() {
-            f.run(elapsed);
+        if FLASH_MODE.load(Ordering::Relaxed) > 0 {
+            let elapsed = origin.elapsed();
+            for f in flashers.iter_mut() {
+                f.run(elapsed);
+            }
+        } else {
+            for flasher in flashers.iter_mut() {
+                flasher.turn_off();
+            }
         }
         lilos::time::sleep_for(Millis(20)).await;
     }
