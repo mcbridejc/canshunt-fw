@@ -30,8 +30,9 @@ use zencan_node::common::{CanId, CanMessage};
 
 /// Just a random magic number
 const MAGIC_JUMP_BOOTLOADER: u32 = 0x1081abcd;
+const MAGIC_RETURN_FROM_BOOTLOADER: u32 = 0x1081_dcba;
 /// Location of the system memory containing the bootloader
-const SYSTEM_MEMORY_BASE: u32 = 0x1fff0000;
+const SYSTEM_MEMORY_BASE: u32 = 0x0BF90000;
 
 pub static DFU_RESET_REQ: AtomicBool = AtomicBool::new(false);
 
@@ -59,11 +60,30 @@ fn reset_to_bootloader() {
 #[cortex_m_rt::pre_init]
 unsafe fn check_jump_bootloader() {
     unsafe {
-        if MAGIC.assume_init() == MAGIC_JUMP_BOOTLOADER {
-            // reset the magic value not to jump again
-            MAGIC.as_mut_ptr().write(0);
-            // jump to bootloader located in System Memory
-            cortex_m::asm::bootload(SYSTEM_MEMORY_BASE as *const u32);
+        let magic = core::ptr::read_volatile(MAGIC.as_ptr());
+        match magic {
+            MAGIC_JUMP_BOOTLOADER => {
+                core::ptr::write_volatile(MAGIC.as_mut_ptr(), MAGIC_RETURN_FROM_BOOTLOADER);
+
+                let mut cp = cortex_m::Peripherals::steal();
+                cp.SYST.disable_counter();
+                cp.SYST.disable_interrupt();
+                cp.SCB.disable_dcache(&mut cp.CPUID);
+                cp.SCB.disable_icache();
+
+                cortex_m::asm::dsb();
+                cortex_m::asm::isb();
+                cortex_m::asm::bootload(SYSTEM_MEMORY_BASE as *const u32);
+            }
+
+            MAGIC_RETURN_FROM_BOOTLOADER => {
+                // After bootloader returns, perform a system reset to get clean chip state
+                core::ptr::write_volatile(MAGIC.as_mut_ptr(), 0);
+                cortex_m::asm::dsb();
+                cortex_m::peripheral::SCB::sys_reset();
+            }
+
+            _ => {}
         }
     }
 }
