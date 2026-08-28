@@ -5,7 +5,7 @@ use core::{
     cell::RefCell,
     convert::Infallible,
     pin::pin,
-    sync::atomic::{AtomicU8, AtomicU32, Ordering},
+    sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering},
     time::Duration,
 };
 
@@ -289,17 +289,21 @@ async fn can_task(mut node: Node<'_>) -> Infallible {
 }
 
 static FLASH_MODE: AtomicU8 = AtomicU8::new(0);
+static IDENT_STROBE: AtomicBool = AtomicBool::new(false);
 
 async fn button_task(btn_pin: Pin) -> Infallible {
-    let mut down_counter = 0;
+    let mut down_counter: i32 = 0;
     let mut last_press_time = lilos::time::TickTime::now();
     const ON_TIME: Duration = Duration::from_secs(30);
     loop {
         let pressed = btn_pin.is_high();
         if pressed {
-            down_counter += 1;
+            down_counter = down_counter.saturating_add(1);
         } else {
             down_counter = 0;
+        }
+        if down_counter == 2 {
+            IDENT_STROBE.store(true, Ordering::Release)
         }
         if down_counter >= 2 {
             last_press_time = lilos::time::TickTime::now();
@@ -316,8 +320,22 @@ async fn button_task(btn_pin: Pin) -> Infallible {
 }
 
 async fn led_task(flashers: &mut [LedFlasher<'_>]) -> Infallible {
+    const STROBE_DELAY: Millis = Millis(50);
     let origin = lilos::time::TickTime::now();
     loop {
+        if IDENT_STROBE.load(Ordering::Relaxed) {
+            IDENT_STROBE.store(false, Ordering::Relaxed);
+            for step in 0..flashers.len() {
+                for (led, flasher) in flashers.iter_mut().enumerate() {
+                    if step == led {
+                        flasher.turn_on();
+                    } else {
+                        flasher.turn_off();
+                    }
+                }
+                lilos::time::sleep_for(STROBE_DELAY).await;
+            }
+        }
         let elapsed = origin.elapsed();
         for f in flashers.iter_mut() {
             f.run(elapsed);
@@ -375,11 +393,7 @@ async fn main_task(cpu_freq: u32, led_commands: &[AtomicU32; 8]) -> Infallible {
         }
 
         for i in 0..8 {
-            if FLASH_MODE.load(Ordering::Relaxed) == 1 {
-                led_commands[i].store((currents[i] * 1000.0) as u32, Ordering::Relaxed);
-            } else {
-                led_commands[i].store(0, Ordering::Relaxed);
-            }
+            led_commands[i].store((currents[i] * 1000.0) as u32, Ordering::Relaxed);
         }
     }
 }

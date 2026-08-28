@@ -21,6 +21,14 @@ impl<'a> LedFlasher<'a> {
         Self { pin, control }
     }
 
+    pub fn turn_on(&mut self) {
+        self.pin.set_low();
+    }
+
+    pub fn turn_off(&mut self) {
+        self.pin.set_high();
+    }
+
     pub fn run(&mut self, elapsed: Millis) {
         const DISPLAY_MAX_MA: f32 = 15000.0;
         const THRESHOLD_CURRENT: f32 = 100.0;
