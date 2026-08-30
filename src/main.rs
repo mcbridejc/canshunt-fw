@@ -276,6 +276,9 @@ fn main() -> ! {
 
     unsafe { cortex_m::interrupt::enable() };
 
+    // Run a strobe on power on
+    IDENT_STROBE.store(true, Ordering::Relaxed);
+
     unsafe {
         lilos::exec::run_tasks_with_preemption(
             &mut [
