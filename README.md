@@ -17,7 +17,7 @@ If the device already has a working application in flash, dfu-util will automati
 
 To program with dfu-util:
 ```
-dfu-util -d 1209:5f4d,0483:df11 -a 0 -D canimu.bin -s 0x8000000:leave
+dfu-util -d 1209:5f4d,0483:df11 -a 0 -D canshunt.bin -s 0x8000000:leave
 ```
 
 The first VID/PID is for the device, the second is for the ST DFU bootloader.
