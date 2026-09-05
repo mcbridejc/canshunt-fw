@@ -58,7 +58,7 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "canshunt"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -81,7 +81,7 @@ dependencies = [
  "usb-device",
  "usbd-dfu-rt",
  "usbd-gscan",
- "zencan-build 0.0.4",
+ "zencan-build",
  "zencan-node",
 ]
 
@@ -150,41 +150,6 @@ name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
-
-[[package]]
-name = "darling"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
-dependencies = [
- "darling_core",
- "darling_macro",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn",
-]
-
-[[package]]
-name = "darling_macro"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
-dependencies = [
- "darling_core",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "defmt"
@@ -299,12 +264,6 @@ dependencies = [
  "vcell",
  "volatile-register",
 ]
-
-[[package]]
-name = "fnv"
-version = "1.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "futures"
@@ -425,12 +384,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "ident_case"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "indexmap"
@@ -868,12 +821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "strsim"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
 name = "syn"
 version = "2.0.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1028,52 +975,23 @@ dependencies = [
 
 [[package]]
 name = "zencan-build"
-version = "0.0.1"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63f974ba39e3eda16b259f3acb4ee3b3b8bfd34082cef7178c6aed77c1657e03"
+checksum = "f76730ed2a850d8e04cf902d1f7ddd7fcee3a1fde01770e97f810de33fe0db76"
 dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
  "snafu",
  "syn",
- "zencan-common 0.0.1",
-]
-
-[[package]]
-name = "zencan-build"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfa59d4afa4934ae1e3909234882641f61fd36459daef84b69a1f34060fecc80"
-dependencies = [
- "prettyplease",
- "proc-macro2",
- "quote",
- "snafu",
- "syn",
- "zencan-common 0.0.4",
+ "zencan-common",
 ]
 
 [[package]]
 name = "zencan-common"
-version = "0.0.1"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25fbb1e254c892956b3cc3a81724b39ebce2f2d544254af90d69ba9ab0468793"
-dependencies = [
- "critical-section",
- "defmt-or-log",
- "int-enum",
- "regex",
- "serde",
- "snafu",
- "toml",
-]
-
-[[package]]
-name = "zencan-common"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a9c7d823d3f2bd914c450bd06d80acc3486727b27715559599a193822cb67b3"
+checksum = "5e6fa25db19e05660f46fcec28ebf4c9d2b30c8b97acce32f50488391d77a60b"
 dependencies = [
  "arbitrary-int",
  "chrono",
@@ -1088,24 +1006,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "zencan-macro"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "338af6c9e17dba97f80c804f2c5a77bc04546441512dda41d516fbcbfbc74867"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn",
- "zencan-build 0.0.1",
- "zencan-common 0.0.1",
-]
-
-[[package]]
 name = "zencan-node"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385cede2ff32dc91e6adaf72b3678bf38b517f155a67b4ff6e9dbf913a6f87db"
+checksum = "a8fad74ef22df12766483e65c4aa01e87f5d6d13af59d83000fb8d5e245723d5"
 dependencies = [
  "crc16",
  "critical-section",
@@ -1113,10 +1017,10 @@ dependencies = [
  "defmt-or-log",
  "embedded-io",
  "futures",
+ "heapless 0.9.3",
  "portable-atomic",
  "static_cell",
- "zencan-common 0.0.4",
- "zencan-macro",
+ "zencan-common",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 device_name = "CANShunt"
-software_version = "v0.2.0"
+software_version = "v0.3.0"
 hardware_version = "rev2"
 heartbeat_period = 1000
 autostart = "enabled"
