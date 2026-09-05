@@ -202,6 +202,7 @@ fn main() -> ! {
         flash::store_node_config(&mut *persist_flash.borrow_mut(), node_id);
     };
     let mut store_objects = |reader: &mut dyn embedded_io::Read<Error = Infallible>, len: usize| {
+        defmt::info!("Persisting objects to flash");
         flash::store_objects(&mut *persist_flash.borrow_mut(), reader, len);
     };
     let mut reset_app = |od: &[ODEntry]| {
