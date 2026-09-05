@@ -9,20 +9,18 @@ Embedded software for the CANShunt board.
 You will need cargo binutils: `cargo install cargo-binutils`
 
 Generate the binary file:
-`cargo objcopy --release -- -O binary canimu.bin`
+`cargo objcopy --release -- -O binary canshunt.bin`
 
 ### Programming .bin file
 
-Boot the board into DFU mode, by turning on DIP switch labeled "DFU", and powering on.
+If the device already has a working application in flash, dfu-util will automatically trigger the device to detach and reattach as a bootloader. Otherwise, the bootloader can be activated manually by holding down the mode button while powering the device on.
 
-Program with dfu-util:
-
+To program with dfu-util:
 ```
 dfu-util -d 1209:5f4d,0483:df11 -a 0 -D canimu.bin -s 0x8000000:leave
 ```
 
 The first VID/PID is for the device, the second is for the ST DFU bootloader.
-
 
 ## Dev Notes
 
