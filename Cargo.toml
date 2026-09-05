@@ -25,11 +25,10 @@ stm32-metapac = {version = "18.0.0", features = ["stm32l552rc"] }
 usb-device = { version = "0.3.2", features = ["defmt"] }
 usbd-dfu-rt = "0.4.0"
 usbd-gscan = "0.2.0"
-#usbd-gscan = { git = "https://github.com/mcbridejc/usbd-gscan", branch = "fix-normal-can", features = ["defmt-03"] }
-zencan-node = { version = "0.0.4", default-features = false, features = ["defmt"]}
+zencan-node = { version = "0.0.5", default-features = false, features = ["defmt"]}
 
 [build-dependencies]
-zencan-build = { version = "0.0.4" }
+zencan-build = { version = "0.0.5" }
 
 [profile.dev]
 codegen-units = 1       # better optimizations
